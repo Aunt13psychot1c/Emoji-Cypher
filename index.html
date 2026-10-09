@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Turn any message into emoji and back. Multiple emoji per letter, optional password key that reshuffles the whole alphabet.">
+<style>
+  html,body{margin:0}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+  :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+</style>
+<title>Emoji Cipher</title>
+<style>
+/* Layout: single column grimoire-terminal, stacked panels, committed dark world */
+:root{
+  --void:#0b0712;
+  --panel:#150f22;
+  --panel-2:#1d1430;
+  --edge:#33234f;
+  --ink:#ece4f7;
+  --ink-dim:#9a8ab4;
+  --hot:#ff3d9a;
+  --cold:#4fe3d0;
+  --gold:#f5c451;
+  --display:"Pirata One", "Papyrus", fantasy;
+  --body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+
+*{box-sizing:border-box}
+
+body{
+  background:
+    radial-gradient(900px 500px at 15% -10%, #2a1040 0%, transparent 60%),
+    radial-gradient(700px 400px at 95% 10%, #0d2b33 0%, transparent 55%),
+    var(--void);
+  color:var(--ink);
+  font-family:var(--body);
+  margin:0;
+  min-height:100%;
+}
+
+.wrap{
+  max-width:720px;
+  margin:0 auto;
+  padding-inline:18px;
+  padding-block:34px 60px;
+  display:flex;
+  flex-direction:column;
+  gap:22px;
+}
+
+/* ---- masthead ---- */
+.mast{display:flex;flex-direction:column;gap:6px}
+h1{
+  font-family:var(--display);
+  font-weight:400;
+  font-size:clamp(2.9rem,12vw,4.4rem);
+  line-height:.92;
+  margin:0;
+  text-wrap:balance;
+  background:linear-gradient(100deg,var(--hot) 0%,var(--gold) 45%,var(--cold) 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.tag{
+  font-family:var(--mono);
+  font-size:.72rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--ink-dim);
+}
+
+/* ---- panels ---- */
+.panel{
+  background:var(--panel);
+  border:1px solid var(--edge);
+  border-radius:14px;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  min-width:0;
+}
+.lab{
+  font-family:var(--mono);
+  font-size:.68rem;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-dim);
+}
+
+/* ---- mode switch ---- */
+.modes{display:flex;gap:8px}
+.modes button{
+  flex:1;
+  font-family:var(--mono);
+  font-size:.78rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  padding:11px 8px;
+  border-radius:10px;
+  border:1px solid var(--edge);
+  background:var(--panel);
+  color:var(--ink-dim);
+  cursor:pointer;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.modes button[aria-pressed="true"]{
+  background:linear-gradient(180deg,rgba(255,61,154,.22),rgba(255,61,154,.06));
+  border-color:var(--hot);
+  color:var(--ink);
+}
+
+/* ---- fields ---- */
+textarea{
+  width:100%;
+  min-height:120px;
+  resize:vertical;
+  background:var(--panel-2);
+  border:1px solid var(--edge);
+  border-radius:10px;
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:1rem;
+  line-height:1.5;
+  padding:12px;
+}
+textarea.emoji-in{font-size:1.5rem;line-height:1.5;letter-spacing:.04em}
+textarea::placeholder{color:#60537a}
+
+.keyrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.keyrow input{
+  flex:1 1 180px;
+  min-width:0;
+  background:var(--panel-2);
+  border:1px solid var(--edge);
+  border-radius:10px;
+  color:var(--gold);
+  font-family:var(--mono);
+  font-size:.95rem;
+  padding:11px 12px;
+  letter-spacing:.05em;
+}
+.keyrow input::placeholder{color:#60537a;letter-spacing:0}
+.ghost{
+  font-family:var(--mono);
+  font-size:.7rem;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid var(--edge);
+  background:transparent;
+  color:var(--ink-dim);
+  cursor:pointer;
+}
+.ghost:hover{color:var(--ink);border-color:var(--cold)}
+
+.note{font-size:.8rem;color:var(--ink-dim);line-height:1.45}
+.note b{color:var(--gold);font-weight:600}
+
+/* ---- output ---- */
+.out{
+  background:var(--panel-2);
+  border:1px solid var(--edge);
+  border-radius:10px;
+  padding:14px;
+  min-height:96px;
+  font-size:1.6rem;
+  line-height:1.55;
+  letter-spacing:.04em;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+}
+.out.text{font-family:var(--body);font-size:1.05rem;letter-spacing:0;line-height:1.55}
+.out:empty::before{content:"—";color:#4a3d63}
+
+.outbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.copy{
+  font-family:var(--mono);
+  font-size:.74rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  padding:11px 16px;
+  border-radius:10px;
+  border:1px solid var(--hot);
+  background:linear-gradient(180deg,rgba(255,61,154,.26),rgba(255,61,154,.08));
+  color:var(--ink);
+  cursor:pointer;
+}
+.copy:disabled{opacity:.4;cursor:default;border-color:var(--edge);background:transparent}
+.count{font-family:var(--mono);font-size:.72rem;color:var(--ink-dim);margin-left:auto}
+
+/* ---- key table ---- */
+details{border-top:1px solid var(--edge);padding-top:14px}
+summary{
+  cursor:pointer;
+  font-family:var(--mono);
+  font-size:.7rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--cold);
+  list-style:none;
+}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸ ";}
+details[open] summary::before{content:"▾ ";}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(104px,1fr));
+  gap:8px;
+  margin-top:14px;
+}
+.cell{
+  background:var(--panel-2);
+  border:1px solid var(--edge);
+  border-radius:8px;
+  padding:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.cell .ch{
+  font-family:var(--mono);
+  font-size:.82rem;
+  color:var(--gold);
+  width:1.6em;
+  flex:none;
+  text-align:center;
+}
+.cell .em{font-size:1.1rem;letter-spacing:.06em;overflow-wrap:anywhere;min-width:0}
+
+:focus-visible{outline:2px solid var(--cold);outline-offset:2px}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<div class="wrap">
+
+  <header class="mast">
+    <h1>Emoji Cipher</h1>
+    <div class="tag">every letter wears more than one face</div>
+  </header>
+
+  <section class="panel">
+    <div class="modes" role="group" aria-label="Mode">
+      <button id="mEnc" aria-pressed="true">Encrypt</button>
+      <button id="mDec" aria-pressed="false">Decrypt</button>
+    </div>
+
+    <div>
+      <label class="lab" for="input" id="inLab">Your message</label>
+      <textarea id="input" placeholder="Type anything. It gets dressed up in emoji."></textarea>
+    </div>
+
+    <div>
+      <label class="lab" for="pass">Password key — optional</label>
+      <div class="keyrow">
+        <input id="pass" type="text" autocomplete="off" spellcheck="false" placeholder="leave blank for the open cipher">
+        <button class="ghost" id="clearPass">Clear</button>
+      </div>
+    </div>
+
+    <p class="note" id="passNote">No password: anyone with this tool can read it. Add one and the whole alphabet gets reshuffled — <b>they need the exact same word</b> to get it back.</p>
+  </section>
+
+  <section class="panel">
+    <div class="lab" id="outLab">Encrypted</div>
+    <div class="out" id="out" aria-live="polite"></div>
+    <div class="outbar">
+      <button class="copy" id="copy" disabled>Copy</button>
+      <span class="count" id="count"></span>
+    </div>
+
+    <details>
+      <summary>Show the key</summary>
+      <div class="grid" id="keyGrid"></div>
+    </details>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- emoji pool ---------- */
+  var POOL = [
+    "🌹","🥀","🌺","🌸","🌼","🌻","🌷","💐","🍀","🍁","🍂","🍃","🌱","🌿","☘️","🌾",
+    "🔥","💧","⚡","❄️","🌊","🌈","☀️","🌙","⭐","✨","💫","☄️","🌟","🪐","🌞","🌝",
+    "💀","☠️","👻","👽","🤖","🎃","😈","👁️","🦷","🫀","🧠","🦴","🩸","💊","🧬","🔮",
+    "🐍","🦂","🕷️","🦇","🐺","🐈","🦉","🦅","🐉","🦋","🐌","🐙","🦑","🦈","🐊","🦎",
+    "🍄","🌵","🎋","🪵","🪨","💎","🔱","⚜️","🗝️","🔑","🔒","🧿","📿","🪬","🎭","🃏",
+    "🎲","🎰","🕹️","🎮","🧩","♠️","♥️","♦️","♣️","🀄","🎯","🏹","🗡️","⚔️","🛡️","🏺",
+    "🧪","⚗️","🔬","🔭","📡","🛸","🚀","🛰️","⚙️","🔩","⛓️","🧲","🪤","🕸️","🧵","🪡",
+    "🎸","🎹","🥁","🎺","🎻","🪕","🎤","🎧","📻","📼","💿","📀","🎼","🎵","🎶","🔔",
+    "☕","🍵","🍷","🍸","🍹","🍺","🧃","🥤","🍯","🧂","🌶️","🧄","🧅","🥑","🍓","🍒",
+    "🗿","🪞","🕯️","🔦","💡","🧹","🪄","📜","📖","🪶","🖋️","🩻","🎀","🧸","🪆","🎁"
+  ].filter(function(v,i,a){ return a.indexOf(v) === i; });
+
+  var CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?'\"-:;()/".split("");
+  var VARIANTS = 3;
+
+  /* ---------- seeded prng ---------- */
+  function seedFrom(str){
+    var h = 1779033703 ^ str.length;
+    for (var i = 0; i < str.length; i++){
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function(){
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= h >>> 16;
+      return h >>> 0;
+    };
+  }
+  function rngFrom(str){
+    var s = seedFrom(str), a = s(), b = s(), c = s(), d = s();
+    return function(){
+      a |= 0; b |= 0; c |= 0; d |= 0;
+      var t = (((a + b) | 0) + d) | 0;
+      d = (d + 1) | 0;
+      a = b ^ (b >>> 9);
+      b = (c + (c << 3)) | 0;
+      c = (c << 21) | (c >>> 11);
+      c = (c + t) | 0;
+      return (t >>> 0) / 4294967296;
+    };
+  }
+
+  /* ---------- build the mapping ---------- */
+  var MAP_CACHE = {};
+  function buildMap(pass){
+    var k = "k:" + pass;
+    if (MAP_CACHE[k]) return MAP_CACHE[k];
+
+    var pool = POOL.slice(0, CHARS.length * VARIANTS);
+    if (pass){
+      var rnd = rngFrom(pass);
+      for (var i = pool.length - 1; i > 0; i--){
+        var j = Math.floor(rnd() * (i + 1));
+        var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+      }
+    }
+
+    var toEmoji = {}, toChar = {}, maxLen = 1, n = 0;
+    for (var c = 0; c < CHARS.length; c++){
+      var set = [];
+      for (var v = 0; v < VARIANTS; v++){
+        var e = pool[n++];
+        set.push(e);
+        toChar[e] = CHARS[c];
+        if (e.length > maxLen) maxLen = e.length;
+      }
+      toEmoji[CHARS[c]] = set;
+    }
+
+    var m = { toEmoji: toEmoji, toChar: toChar, maxLen: maxLen };
+    MAP_CACHE[k] = m;
+    return m;
+  }
+
+  /* ---------- encrypt / decrypt ---------- */
+  function encrypt(text, pass){
+    var m = buildMap(pass);
+    var chars = Array.from(text);
+    var out = "";
+    for (var i = 0; i < chars.length; i++){
+      var ch = chars[i];
+      var up = ch.toUpperCase();
+      var set = m.toEmoji[up];
+      if (set){
+        out += set[Math.floor(Math.random() * set.length)];
+      } else if (ch === "\n"){
+        out += "\n";
+      } else {
+        out += ch;
+      }
+    }
+    return out;
+  }
+
+  function decrypt(text, pass){
+    var m = buildMap(pass);
+    var out = "";
+    var i = 0;
+    while (i < text.length){
+      var hit = null, hitLen = 0;
+      for (var l = m.maxLen; l >= 1; l--){
+        var slice = text.substr(i, l);
+        if (slice.length === l && Object.prototype.hasOwnProperty.call(m.toChar, slice)){
+          hit = m.toChar[slice];
+          hitLen = l;
+          break;
+        }
+      }
+      if (hit !== null){
+        out += hit;
+        i += hitLen;
+      } else {
+        out += text[i];
+        i += 1;
+      }
+    }
+    return out;
+  }
+
+  /* ---------- wiring ---------- */
+  var $ = function(id){ return document.getElementById(id); };
+  var input = $("input"), pass = $("pass"), out = $("out"),
+      copy = $("copy"), count = $("count"),
+      mEnc = $("mEnc"), mDec = $("mDec"),
+      inLab = $("inLab"), outLab = $("outLab"),
+      grid = $("keyGrid");
+
+  var mode = "enc";
+
+  function setMode(next){
+    mode = next;
+    var enc = mode === "enc";
+    mEnc.setAttribute("aria-pressed", String(enc));
+    mDec.setAttribute("aria-pressed", String(!enc));
+    inLab.textContent = enc ? "Your message" : "Paste the emoji";
+    outLab.textContent = enc ? "Encrypted" : "Decrypted";
+    input.placeholder = enc
+      ? "Type anything. It gets dressed up in emoji."
+      : "Paste an emoji message here.";
+    input.classList.toggle("emoji-in", !enc);
+    out.classList.toggle("text", !enc);
+    render();
+  }
+
+  function render(){
+    var txt = input.value;
+    var key = pass.value.trim();
+    var result = txt ? (mode === "enc" ? encrypt(txt, key) : decrypt(txt, key)) : "";
+    out.textContent = result;
+    copy.disabled = !result;
+    copy.textContent = "Copy";
+    count.textContent = result ? (mode === "enc"
+      ? Array.from(result).length + " symbols"
+      : result.length + " characters") : "";
+    drawKey(key);
+  }
+
+  var lastKeyDrawn = null;
+  function drawKey(key){
+    if (lastKeyDrawn === key) return;
+    lastKeyDrawn = key;
+    var m = buildMap(key);
+    var html = "";
+    for (var i = 0; i < CHARS.length; i++){
+      var c = CHARS[i];
+      var label = c === " " ? "␣" : c;
+      html += '<div class="cell"><span class="ch">' + label.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;") +
+              '</span><span class="em">' + m.toEmoji[c].join("") + "</span></div>";
+    }
+    grid.innerHTML = html;
+  }
+
+  copy.addEventListener("click", function(){
+    var text = out.textContent;
+    if (!text) return;
+    var done = function(){
+      copy.textContent = "Copied";
+      setTimeout(function(){ copy.textContent = "Copy"; }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, selectFallback);
+    } else {
+      selectFallback();
+    }
+  });
+
+  function selectFallback(){
+    var r = document.createRange();
+    r.selectNodeContents(out);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    copy.textContent = "Selected — copy it";
+    setTimeout(function(){ copy.textContent = "Copy"; }, 2400);
+  }
+
+  mEnc.addEventListener("click", function(){ setMode("enc"); });
+  mDec.addEventListener("click", function(){ setMode("dec"); });
+  input.addEventListener("input", render);
+  pass.addEventListener("input", render);
+  $("clearPass").addEventListener("click", function(){ pass.value = ""; render(); pass.focus(); });
+
+  input.value = "Queen of Chaos was here";
+  setMode("enc");
+})();
+</script>
+</body>
+</html>
