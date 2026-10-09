@@ -481,7 +481,7 @@ details[open] summary::before{content:"▾ ";}
     for (var i = 0; i < CHARS.length; i++){
       var c = CHARS[i];
       var label = c === " " ? "␣" : c;
-      html += '<div class="cell"><span class="ch">' + label.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;") +
+      html += '<div class="cell"><span class="ch">' + label.replace(/&/g,"&").replace(/</g,"<").replace(/"/g,""") +
               '</span><span class="em">' + m.toEmoji[c].join("") + "</span></div>";
     }
     grid.innerHTML = html;
