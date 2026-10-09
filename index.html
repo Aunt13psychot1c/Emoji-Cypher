@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Turn any message into emoji and back. Multiple emoji per letter, optional password key that reshuffles the whole alphabet.">
 <style>
@@ -179,7 +180,34 @@ textarea::placeholder{color:#60537a}
 .out.text{font-family:var(--body);font-size:1.05rem;letter-spacing:0;line-height:1.55}
 .out:empty::before{content:"—";color:#4a3d63}
 
+.diag{
+  border:1px solid #ff3d9a;
+  background:rgba(255,61,154,.12);
+  border-radius:10px;
+  padding:12px 14px;
+  font-family:var(--mono);
+  font-size:.78rem;
+  line-height:1.5;
+  color:#ffd0e6;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+}
 .outbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card-wrap{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.card-wrap img{
+  width:100%;
+  max-width:100%;
+  border-radius:12px;
+  border:1px solid var(--edge);
+  display:block;
+}
+.save-hint{
+  font-family:var(--mono);
+  font-size:.7rem;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--cold);
+}
 .copy{
   font-family:var(--mono);
   font-size:.74rem;
@@ -245,6 +273,11 @@ details[open] summary::before{content:"▾ ";}
 
 <div class="wrap">
 
+  <noscript>
+    <div class="diag">This browser has JavaScript turned off, so the cipher can't run. Open the page in Chrome, Firefox or Safari instead.</div>
+  </noscript>
+  <div class="diag" id="diag" hidden></div>
+
   <header class="mast">
     <h1>Emoji Cipher</h1>
     <div class="tag">every letter wears more than one face</div>
@@ -277,7 +310,17 @@ details[open] summary::before{content:"▾ ";}
     <div class="out" id="out" aria-live="polite"></div>
     <div class="outbar">
       <button class="copy" id="copy" disabled>Copy</button>
+      <button class="ghost" id="makeCard" disabled>Make a card</button>
+      <button class="ghost" id="saveTxt" hidden>Save .txt</button>
       <span class="count" id="count"></span>
+    </div>
+
+    <div class="card-wrap" id="cardWrap" hidden>
+      <img id="cardImg" alt="Shareable card showing the encrypted emoji message">
+      <div class="outbar">
+        <button class="ghost" id="savePng" hidden>Save .png</button>
+        <span class="save-hint" id="saveHint">Long-press (or right-click) the card to save it</span>
+      </div>
     </div>
 
     <details>
@@ -287,6 +330,19 @@ details[open] summary::before{content:"▾ ";}
   </section>
 
 </div>
+
+<script>
+window.onerror = function(msg, src, line, col){
+  try {
+    var d = document.getElementById("diag");
+    if (d){
+      d.hidden = false;
+      d.textContent = "Script error — " + msg + "  [line " + line + ":" + col + "]";
+    }
+  } catch (e) {}
+  return false;
+};
+</script>
 
 <script>
 (function(){
@@ -420,7 +476,11 @@ details[open] summary::before{content:"▾ ";}
       copy = $("copy"), count = $("count"),
       mEnc = $("mEnc"), mDec = $("mDec"),
       inLab = $("inLab"), outLab = $("outLab"),
-      grid = $("keyGrid");
+      grid = $("keyGrid"),
+      makeCard = $("makeCard"), cardWrap = $("cardWrap"), cardImg = $("cardImg"),
+      saveTxt = $("saveTxt"), savePng = $("savePng"), saveHint = $("saveHint");
+
+  var DL = null, lastPng = null;
 
   var mode = "enc";
 
@@ -446,6 +506,10 @@ details[open] summary::before{content:"▾ ";}
     out.textContent = result;
     copy.disabled = !result;
     copy.textContent = "Copy";
+    makeCard.disabled = !result || mode !== "enc";
+    makeCard.hidden = mode !== "enc";
+    saveTxt.hidden = !DL || !result || mode !== "enc";
+    if (mode !== "enc" || !result){ cardWrap.hidden = true; }
     count.textContent = result ? (mode === "enc"
       ? Array.from(result).length + " symbols"
       : result.length + " characters") : "";
@@ -466,6 +530,167 @@ details[open] summary::before{content:"▾ ";}
     }
     grid.innerHTML = html;
   }
+
+  /* ---------- shareable card ---------- */
+  function tokenize(text, pass){
+    var m = buildMap(pass), toks = [], i = 0;
+    while (i < text.length){
+      var hit = null, hitLen = 0;
+      for (var l = m.maxLen; l >= 1; l--){
+        var slice = text.substr(i, l);
+        if (slice.length === l && Object.prototype.hasOwnProperty.call(m.toChar, slice)){
+          hit = slice; hitLen = l; break;
+        }
+      }
+      if (hit !== null){ toks.push(hit); i += hitLen; }
+      else { toks.push(text[i]); i += 1; }
+    }
+    return toks;
+  }
+
+  function drawCard(){
+    var text = out.textContent;
+    if (!text) return;
+
+    var W = 1000, PAD = 70, GLYPH = 48, LH = 70, GAP = 10;
+    var cv = document.createElement("canvas");
+    var ctx = cv.getContext("2d");
+    var emojiFont = GLYPH + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+
+    /* lay the glyphs out into lines first so we know the height */
+    ctx.font = emojiFont;
+    var toks = tokenize(text, pass.value.trim());
+    var inner = W - PAD * 2;
+    var lines = [], line = [], lineW = 0;
+    for (var i = 0; i < toks.length; i++){
+      var t = toks[i];
+      if (t === "\n"){ lines.push(line); line = []; lineW = 0; continue; }
+      var w = ctx.measureText(t).width + GAP;
+      if (lineW + w > inner && line.length){ lines.push(line); line = []; lineW = 0; }
+      line.push({ t: t, w: w });
+      lineW += w;
+    }
+    if (line.length) lines.push(line);
+    if (!lines.length) lines = [[]];
+
+    var HEAD = 150, FOOT = 110;
+    var H = PAD + HEAD + lines.length * LH + FOOT;
+    cv.width = W;
+    cv.height = H;
+    ctx = cv.getContext("2d");
+
+    /* ground */
+    var g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, "#1a0b2e");
+    g.addColorStop(0.55, "#0b0712");
+    g.addColorStop(1, "#07201f");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    var glow = ctx.createRadialGradient(W * 0.14, 60, 0, W * 0.14, 60, 520);
+    glow.addColorStop(0, "rgba(255,61,154,0.22)");
+    glow.addColorStop(1, "rgba(255,61,154,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "#33234f";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+
+    /* header */
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#ff3d9a";
+    ctx.font = '72px "Pirata One", Papyrus, fantasy';
+    ctx.fillText("Emoji Cipher", PAD, PAD + 68);
+
+    ctx.fillStyle = "#9a8ab4";
+    ctx.font = '22px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.fillText(pass.value.trim() ? "KEYED — YOU NEED THE PASSWORD" : "OPEN CIPHER — NO PASSWORD", PAD, PAD + 104);
+
+    ctx.strokeStyle = "#4fe3d0";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(PAD, PAD + 124);
+    ctx.lineTo(W - PAD, PAD + 124);
+    ctx.stroke();
+
+    /* the message */
+    ctx.font = emojiFont;
+    ctx.fillStyle = "#ece4f7";
+    var y = PAD + HEAD + GLYPH;
+    for (var li = 0; li < lines.length; li++){
+      var x = PAD;
+      for (var k = 0; k < lines[li].length; k++){
+        ctx.fillText(lines[li][k].t, x, y);
+        x += lines[li][k].w;
+      }
+      y += LH;
+    }
+
+    /* footer */
+    ctx.fillStyle = "#f5c451";
+    ctx.font = '24px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.fillText("decode it → Emoji Cipher", PAD, H - PAD + 26);
+
+    ctx.fillStyle = "#60537a";
+    ctx.font = '22px "IBM Plex Mono", ui-monospace, monospace';
+    var mark = "🥀ÝÝÝ";
+    ctx.fillText(mark, W - PAD - ctx.measureText(mark).width, H - PAD + 26);
+
+    cardImg.src = cv.toDataURL("image/png");
+    cardWrap.hidden = false;
+    lastPng = null;
+    if (cv.toBlob){
+      cv.toBlob(function(b){ lastPng = b; }, "image/png");
+    }
+  }
+
+  function stamp(){
+    var d = new Date();
+    var p = function(n){ return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
+  }
+
+  function offer(btn, filename, data, label){
+    if (!DL) return;
+    var original = btn.textContent;
+    btn.disabled = true;
+    DL.save({ filename: filename, data: data }).then(function(){
+      btn.textContent = "Saved";
+    }, function(err){
+      btn.textContent = (err && err.code === "declined") ? original : "Couldn't save";
+    }).then(function(){
+      setTimeout(function(){ btn.textContent = original; btn.disabled = false; }, 1800);
+    });
+  }
+
+  saveTxt.addEventListener("click", function(){
+    if (!out.textContent) return;
+    offer(saveTxt, "emoji-cipher-" + stamp() + ".txt", out.textContent);
+  });
+
+  savePng.addEventListener("click", function(){
+    if (!lastPng) return;
+    offer(savePng, "emoji-cipher-" + stamp() + ".png", lastPng);
+  });
+
+  if (window.claude && window.claude.use){
+    window.claude.use("downloads").then(function(dl){
+      if (!dl) return;
+      DL = dl;
+      savePng.hidden = false;
+      saveHint.textContent = "or long-press the card";
+      if (mode === "enc" && out.textContent) saveTxt.hidden = false;
+    }, function(){});
+  }
+
+  makeCard.addEventListener("click", function(){
+    if (document.fonts && document.fonts.ready){
+      document.fonts.ready.then(drawCard, drawCard);
+    } else {
+      drawCard();
+    }
+  });
 
   copy.addEventListener("click", function(){
     var text = out.textContent;
@@ -494,11 +719,32 @@ details[open] summary::before{content:"▾ ";}
   mEnc.addEventListener("click", function(){ setMode("enc"); });
   mDec.addEventListener("click", function(){ setMode("dec"); });
   input.addEventListener("input", render);
+  input.addEventListener("change", render);
+  input.addEventListener("paste", function(){ setTimeout(render, 0); });
   pass.addEventListener("input", render);
+  pass.addEventListener("change", render);
+
+  /* some mobile keyboards (swipe, voice, autofill) don't fire input events —
+     poll the fields so the output never silently goes stale */
+  var seenIn = null, seenPass = null;
+  setInterval(function(){
+    if (input.value !== seenIn || pass.value !== seenPass){
+      seenIn = input.value;
+      seenPass = pass.value;
+      render();
+    }
+  }, 250);
   $("clearPass").addEventListener("click", function(){ pass.value = ""; render(); pass.focus(); });
 
   input.value = "Queen of Chaos was here";
   setMode("enc");
+
+  if (!out.textContent){
+    var d = $("diag");
+    d.hidden = false;
+    d.textContent = "The cipher ran but produced nothing. Pool " + POOL.length +
+                    ", needs " + (CHARS.length * VARIANTS) + ". Open this page in Chrome, Firefox or Safari.";
+  }
 })();
 </script>
 </body>
