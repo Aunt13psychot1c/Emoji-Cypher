@@ -315,6 +315,13 @@ details[open] summary::before{content:"▾ ";}
       <span class="count" id="count"></span>
     </div>
 
+    <div id="linkRow" hidden>
+      <label class="lab" for="link">Link printed on the card</label>
+      <div class="keyrow">
+        <input id="link" type="text" autocomplete="off" spellcheck="false" placeholder="where people go to decode it">
+      </div>
+    </div>
+
     <div class="card-wrap" id="cardWrap" hidden>
       <img id="cardImg" alt="Shareable card showing the encrypted emoji message">
       <div class="outbar">
@@ -478,7 +485,19 @@ window.onerror = function(msg, src, line, col){
       inLab = $("inLab"), outLab = $("outLab"),
       grid = $("keyGrid"),
       makeCard = $("makeCard"), cardWrap = $("cardWrap"), cardImg = $("cardImg"),
-      saveTxt = $("saveTxt"), savePng = $("savePng"), saveHint = $("saveHint");
+      saveTxt = $("saveTxt"), savePng = $("savePng"), saveHint = $("saveHint"),
+      link = $("link"), linkRow = $("linkRow");
+
+  var DEFAULT_LINK = "https://aunt13psychot1c.github.io/Emoji-Cypher/";
+  try {
+    var saved = localStorage.getItem("ec-link");
+    link.value = (saved && saved.trim()) ? saved : DEFAULT_LINK;
+  } catch (e) {
+    link.value = DEFAULT_LINK;
+  }
+  link.addEventListener("input", function(){
+    try { localStorage.setItem("ec-link", link.value); } catch (e) {}
+  });
 
   var DL = null, lastPng = null;
 
@@ -508,7 +527,8 @@ window.onerror = function(msg, src, line, col){
     copy.textContent = "Copy";
     makeCard.disabled = !result || mode !== "enc";
     makeCard.hidden = mode !== "enc";
-    saveTxt.hidden = !DL || !result || mode !== "enc";
+    saveTxt.hidden = !result || mode !== "enc";
+    linkRow.hidden = mode !== "enc";
     if (mode !== "enc" || !result){ cardWrap.hidden = true; }
     count.textContent = result ? (mode === "enc"
       ? Array.from(result).length + " symbols"
@@ -630,7 +650,8 @@ window.onerror = function(msg, src, line, col){
     /* footer */
     ctx.fillStyle = "#f5c451";
     ctx.font = '24px "IBM Plex Mono", ui-monospace, monospace';
-    ctx.fillText("decode it → Emoji Cipher", PAD, H - PAD + 26);
+    var where = link.value.trim();
+    ctx.fillText(where ? "decode it → " + where : "decode it → Emoji Cipher", PAD, H - PAD + 26);
 
     ctx.fillStyle = "#60537a";
     ctx.font = '22px "IBM Plex Mono", ui-monospace, monospace';
@@ -640,8 +661,12 @@ window.onerror = function(msg, src, line, col){
     cardImg.src = cv.toDataURL("image/png");
     cardWrap.hidden = false;
     lastPng = null;
+    savePng.hidden = true;
     if (cv.toBlob){
-      cv.toBlob(function(b){ lastPng = b; }, "image/png");
+      cv.toBlob(function(b){
+        lastPng = b;
+        if (b) savePng.hidden = false;
+      }, "image/png");
     }
   }
 
@@ -651,9 +676,31 @@ window.onerror = function(msg, src, line, col){
     return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
   }
 
-  function offer(btn, filename, data, label){
-    if (!DL) return;
+  function plainSave(filename, data, type){
+    try {
+      var blob = (data instanceof Blob) ? data : new Blob([data], { type: type });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function offer(btn, filename, data, type){
     var original = btn.textContent;
+    if (!DL){
+      btn.textContent = plainSave(filename, data, type) ? "Saved" : "Couldn't save";
+      setTimeout(function(){ btn.textContent = original; }, 1800);
+      return;
+    }
     btn.disabled = true;
     DL.save({ filename: filename, data: data }).then(function(){
       btn.textContent = "Saved";
@@ -666,21 +713,24 @@ window.onerror = function(msg, src, line, col){
 
   saveTxt.addEventListener("click", function(){
     if (!out.textContent) return;
-    offer(saveTxt, "emoji-cipher-" + stamp() + ".txt", out.textContent);
+    var where = link.value.trim();
+    var body = out.textContent + "\n\n" +
+               (pass.value.trim() ? "Keyed - you need the password to read this."
+                                  : "Open cipher - no password needed.") + "\n" +
+               "Decode it: " + (where || "Emoji Cipher") + "\n";
+    offer(saveTxt, "emoji-cipher-" + stamp() + ".txt", body, "text/plain;charset=utf-8");
   });
 
   savePng.addEventListener("click", function(){
     if (!lastPng) return;
-    offer(savePng, "emoji-cipher-" + stamp() + ".png", lastPng);
+    offer(savePng, "emoji-cipher-" + stamp() + ".png", lastPng, "image/png");
   });
 
   if (window.claude && window.claude.use){
     window.claude.use("downloads").then(function(dl){
       if (!dl) return;
       DL = dl;
-      savePng.hidden = false;
       saveHint.textContent = "or long-press the card";
-      if (mode === "enc" && out.textContent) saveTxt.hidden = false;
     }, function(){});
   }
 
