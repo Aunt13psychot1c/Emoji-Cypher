@@ -21,9 +21,9 @@
   --edge:#33234f;
   --ink:#ece4f7;
   --ink-dim:#9a8ab4;
-  --hot:#ff3d9a;
-  --cold:#4fe3d0;
-  --gold:#f5c451;
+  --hot:#d4879c;
+  --cold:#b48ead;
+  --gold:#e8bfc9;
   --display:"Pirata One", "Papyrus", fantasy;
   --body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
   --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -35,7 +35,7 @@
 body{
   background:
     radial-gradient(900px 500px at 15% -10%, #2a1040 0%, transparent 60%),
-    radial-gradient(700px 400px at 95% 10%, #0d2b33 0%, transparent 55%),
+    radial-gradient(700px 400px at 95% 10%, #2a1530 0%, transparent 55%),
     var(--void);
   color:var(--ink);
   font-family:var(--body);
@@ -111,7 +111,7 @@ h1{
   transition:background .15s, color .15s, border-color .15s;
 }
 .modes button[aria-pressed="true"]{
-  background:linear-gradient(180deg,rgba(255,61,154,.22),rgba(255,61,154,.06));
+  background:linear-gradient(180deg,rgba(212,135,156,.22),rgba(212,135,156,.06));
   border-color:var(--hot);
   color:var(--ink);
 }
@@ -181,14 +181,14 @@ textarea::placeholder{color:#60537a}
 .out:empty::before{content:"—";color:#4a3d63}
 
 .diag{
-  border:1px solid #ff3d9a;
-  background:rgba(255,61,154,.12);
+  border:1px solid #d4879c;
+  background:rgba(212,135,156,.12);
   border-radius:10px;
   padding:12px 14px;
   font-family:var(--mono);
   font-size:.78rem;
   line-height:1.5;
-  color:#ffd0e6;
+  color:#f3dbe2;
   word-break:break-word;
   overflow-wrap:anywhere;
 }
@@ -216,11 +216,12 @@ textarea::placeholder{color:#60537a}
   padding:11px 16px;
   border-radius:10px;
   border:1px solid var(--hot);
-  background:linear-gradient(180deg,rgba(255,61,154,.26),rgba(255,61,154,.08));
+  background:linear-gradient(180deg,rgba(212,135,156,.26),rgba(212,135,156,.08));
   color:var(--ink);
   cursor:pointer;
 }
 .copy:disabled{opacity:.4;cursor:default;border-color:var(--edge);background:transparent}
+.ext{font-family:var(--mono);font-size:.9rem;color:var(--ink-dim)}
 .count{font-family:var(--mono);font-size:.72rem;color:var(--ink-dim);margin-left:auto}
 
 /* ---- key table ---- */
@@ -310,9 +311,22 @@ details[open] summary::before{content:"▾ ";}
     <div class="out" id="out" aria-live="polite"></div>
     <div class="outbar">
       <button class="copy" id="copy" disabled>Copy</button>
+      <button class="copy" id="share" hidden>Share</button>
       <button class="ghost" id="makeCard" disabled>Make a card</button>
       <button class="ghost" id="saveTxt" hidden>Save .txt</button>
       <span class="count" id="count"></span>
+    </div>
+
+    <div id="fileRow" hidden>
+      <label class="lab" for="fname">File name</label>
+      <div class="keyrow">
+        <input id="fname" type="text" autocomplete="off" spellcheck="false" placeholder="dog-cipher">
+        <span class="ext">.txt</span>
+      </div>
+      <label class="lab" for="hint" style="display:block;margin-top:12px">Hint, written inside the file (optional)</label>
+      <div class="keyrow">
+        <input id="hint" type="text" autocomplete="off" spellcheck="false" placeholder="the key hides in the name">
+      </div>
     </div>
 
     <div id="linkRow" hidden>
@@ -339,7 +353,7 @@ details[open] summary::before{content:"▾ ";}
 </div>
 <div style="text-align:center;margin:28px 0 20px;font-family:'Courier New',monospace;">
   <a href="mailto:aunt13psychot1c@gmail.com?subject=About%20your%20game"
-     style="display:inline-block;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#FFFE3A;text-decoration:none;border:1px solid rgba(95,184,196,.45);padding:10px 16px;">
+     style="display:inline-block;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#d4879c;text-decoration:none;border:1px solid rgba(180,142,173,.45);padding:10px 16px;">
     &#9993; Contact the Queen
   </a>
   <p style="font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#9B7BC0;margin:14px 0 0;">
@@ -494,7 +508,8 @@ window.onerror = function(msg, src, line, col){
       grid = $("keyGrid"),
       makeCard = $("makeCard"), cardWrap = $("cardWrap"), cardImg = $("cardImg"),
       saveTxt = $("saveTxt"), savePng = $("savePng"), saveHint = $("saveHint"),
-      link = $("link"), linkRow = $("linkRow");
+      link = $("link"), linkRow = $("linkRow"),
+      share = $("share"), fname = $("fname"), hint = $("hint"), fileRow = $("fileRow");
 
   var DEFAULT_LINK = "https://aunt13psychot1c.github.io/Emoji-Cypher/";
   try {
@@ -537,6 +552,8 @@ window.onerror = function(msg, src, line, col){
     makeCard.hidden = mode !== "enc";
     saveTxt.hidden = !result || mode !== "enc";
     linkRow.hidden = mode !== "enc";
+    fileRow.hidden = mode !== "enc";
+    share.hidden = !result || mode !== "enc";
     if (mode !== "enc" || !result){ cardWrap.hidden = true; }
     count.textContent = result ? (mode === "enc"
       ? Array.from(result).length + " symbols"
@@ -611,13 +628,13 @@ window.onerror = function(msg, src, line, col){
     var g = ctx.createLinearGradient(0, 0, W, H);
     g.addColorStop(0, "#1a0b2e");
     g.addColorStop(0.55, "#0b0712");
-    g.addColorStop(1, "#07201f");
+    g.addColorStop(1, "#1f0f24");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
     var glow = ctx.createRadialGradient(W * 0.14, 60, 0, W * 0.14, 60, 520);
-    glow.addColorStop(0, "rgba(255,61,154,0.22)");
-    glow.addColorStop(1, "rgba(255,61,154,0)");
+    glow.addColorStop(0, "rgba(212,135,156,0.22)");
+    glow.addColorStop(1, "rgba(212,135,156,0)");
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, W, H);
 
@@ -627,7 +644,7 @@ window.onerror = function(msg, src, line, col){
 
     /* header */
     ctx.textBaseline = "alphabetic";
-    ctx.fillStyle = "#ff3d9a";
+    ctx.fillStyle = "#d4879c";
     ctx.font = '72px "Pirata One", Papyrus, fantasy';
     ctx.fillText("Emoji Cipher", PAD, PAD + 68);
 
@@ -635,7 +652,7 @@ window.onerror = function(msg, src, line, col){
     ctx.font = '22px "IBM Plex Mono", ui-monospace, monospace';
     ctx.fillText(pass.value.trim() ? "KEYED — YOU NEED THE PASSWORD" : "OPEN CIPHER — NO PASSWORD", PAD, PAD + 104);
 
-    ctx.strokeStyle = "#4fe3d0";
+    ctx.strokeStyle = "#b48ead";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(PAD, PAD + 124);
@@ -656,7 +673,7 @@ window.onerror = function(msg, src, line, col){
     }
 
     /* footer */
-    ctx.fillStyle = "#f5c451";
+    ctx.fillStyle = "#e8bfc9";
     ctx.font = '24px "IBM Plex Mono", ui-monospace, monospace';
     var where = link.value.trim();
     ctx.fillText(where ? "decode it → " + where : "decode it → Emoji Cipher", PAD, H - PAD + 26);
@@ -719,14 +736,51 @@ window.onerror = function(msg, src, line, col){
     });
   }
 
+  /* your file name, cleaned up so phones accept it (dog cipher -> dog-cipher.txt) */
+  function fileName(){
+    var n = fname.value.trim().replace(/\.txt$/i, "")
+              .replace(/\s+/g, "-").replace(/[^A-Za-z0-9._-]/g, "");
+    return (n || "emoji-cipher-" + stamp()) + ".txt";
+  }
+
+  /* what goes inside the .txt: the emoji, your hint, then how to decode */
+  function txtBody(){
+    var where = link.value.trim();
+    var h = hint.value.trim();
+    return out.textContent + "\n\n" +
+           (h ? "Hint: " + h + "\n" : "") +
+           (pass.value.trim() ? "Keyed - you need the password to read this."
+                              : "Open cipher - no password needed.") + "\n" +
+           "Decode it: " + (where || "Emoji Cipher") + "\n";
+  }
+
   saveTxt.addEventListener("click", function(){
     if (!out.textContent) return;
-    var where = link.value.trim();
-    var body = out.textContent + "\n\n" +
-               (pass.value.trim() ? "Keyed - you need the password to read this."
-                                  : "Open cipher - no password needed.") + "\n" +
-               "Decode it: " + (where || "Emoji Cipher") + "\n";
-    offer(saveTxt, "emoji-cipher-" + stamp() + ".txt", body, "text/plain;charset=utf-8");
+    offer(saveTxt, fileName(), txtBody(), "text/plain;charset=utf-8");
+  });
+
+  /* Share: opens the phone's own share menu (texts, Discord, Messenger...).
+     Tries to send the .txt file first, falls back to plain text, then to Copy. */
+  share.addEventListener("click", function(){
+    if (!out.textContent) return;
+    var body = txtBody(), name = fileName();
+    var flash = function(msg){
+      share.textContent = msg;
+      setTimeout(function(){ share.textContent = "Share"; }, 1800);
+    };
+    var quiet = function(err){
+      if (!err || err.name !== "AbortError") flash("Couldn't share");
+    };
+    var file = null;
+    try { file = new File([body], name, { type: "text/plain" }); } catch (e) {}
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })){
+      navigator.share({ files: [file], title: name }).catch(quiet);
+    } else if (navigator.share){
+      navigator.share({ title: name, text: body }).catch(quiet);
+    } else {
+      copy.click();
+      flash("Copied instead");
+    }
   });
 
   savePng.addEventListener("click", function(){
