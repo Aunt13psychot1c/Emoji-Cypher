@@ -28,6 +28,10 @@ For GitHub Pages: push this repo, then Settings → Pages → Deploy from branch
 
 This is a substitution cipher wearing emoji. It's fun, it's obscure, and a determined person with enough ciphertext can crack it with frequency analysis like any substitution cipher. Use it for puzzles, server games and passing notes. Don't use it for anything that actually needs to stay secret.
 
+## Support
+
+Like the cipher? [☕ Buy me a coffee](https://buymeacoffee.com/aunt13psychot1c) and keep the chaos running.
+
 ## License
 
 MIT — see LICENSE.
