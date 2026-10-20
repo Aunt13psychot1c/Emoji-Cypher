@@ -677,15 +677,25 @@ window.onerror = function(msg, src, line, col){
     }
 
     /* footer */
-    ctx.fillStyle = "#e8bfc9";
-    ctx.font = '24px "IBM Plex Mono", ui-monospace, monospace';
-    var where = link.value.trim();
-    ctx.fillText(where ? "decode it → " + where : "decode it → Emoji Cipher", PAD, H - PAD + 26);
-
-    ctx.fillStyle = "#60537a";
+    /* signature first, so the decode line knows how much room is left */
     ctx.font = '22px "IBM Plex Mono", ui-monospace, monospace';
     var mark = "🥀ÝÝÝ";
-    ctx.fillText(mark, W - PAD - ctx.measureText(mark).width, H - PAD + 26);
+    var markW = ctx.measureText(mark).width;
+    ctx.fillStyle = "#60537a";
+    ctx.fillText(mark, W - PAD - markW, H - PAD + 26);
+
+    /* the decode line shrinks until it fits beside the signature (long links used to overlap it) */
+    var where = link.value.trim();
+    var line = where ? "decode it → " + where : "decode it → Emoji Cipher";
+    var room = W - PAD * 2 - markW - 24;
+    var size = 24;
+    ctx.font = size + 'px "IBM Plex Mono", ui-monospace, monospace';
+    while (size > 12 && ctx.measureText(line).width > room){
+      size -= 1;
+      ctx.font = size + 'px "IBM Plex Mono", ui-monospace, monospace';
+    }
+    ctx.fillStyle = "#e8bfc9";
+    ctx.fillText(line, PAD, H - PAD + 26);
 
     cardImg.src = cv.toDataURL("image/png");
     cardWrap.hidden = false;
