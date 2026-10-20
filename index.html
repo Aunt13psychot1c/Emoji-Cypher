@@ -821,16 +821,28 @@ window.onerror = function(msg, src, line, col){
       var cancelled = err && (err.name === "AbortError" || /cancel/i.test(String(err.message || err)));
       if (!cancelled) flash("Couldn't share");
     };
+    /* Share sends BOTH: the message as text (emoji + hint + decode link) and the
+       named .txt file. Apps that take text get it in the chat; apps that take files
+       get dog-cipher.txt. Whether "Copy" shows depends on the phone's share menu. */
     if (NATIVE){
-      nativeShare(name, body).catch(quiet);
+      toBase64(body).then(function(b64){
+        return CAP.nativePromise("Filesystem", "writeFile",
+          { path: name, data: b64, directory: "CACHE" });
+      }).then(function(res){
+        return CAP.nativePromise("Share", "share",
+          { title: name, text: body, files: [res.uri], dialogTitle: "Share your cipher" });
+      }).catch(quiet);
       return;
     }
     var file = null;
     try { file = new File([body], name, { type: "text/plain" }); } catch (e) {}
-    if (file && navigator.canShare && navigator.canShare({ files: [file] })){
-      navigator.share({ files: [file], title: name }).catch(quiet);
+    if (file && navigator.canShare && navigator.canShare({ files: [file], text: body })){
+      navigator.share({ files: [file], title: name, text: body }).catch(quiet);
     } else if (navigator.share){
       navigator.share({ title: name, text: body }).catch(quiet);
+    } else if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(body).then(function(){ flash("Copied instead"); },
+                                               function(){ flash("Couldn't share"); });
     } else {
       copy.click();
       flash("Copied instead");
