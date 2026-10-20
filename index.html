@@ -427,6 +427,7 @@ window.onerror = function(msg, src, line, col){
   }
 
   /* ---------- build the mapping ---------- */
+  function stripVS(str){ return str.replace(/[\uFE0E\uFE0F]/g, ""); }
   var MAP_CACHE = {};
   function buildMap(pass){
     var k = "k:" + pass;
@@ -441,19 +442,25 @@ window.onerror = function(msg, src, line, col){
       }
     }
 
-    var toEmoji = {}, toChar = {}, maxLen = 1, n = 0;
+    /* Decoding matches emoji with their invisible variation selector (U+FE0F) removed.
+       Phones, keyboards and chat apps often strip it when copying or sharing, and then
+       a coded ♦️ arrives as plain ♦ and used to decode as junk. [display] maps the bare
+       form back to the full emoji, for drawing cards. */
+    var toEmoji = {}, toChar = {}, display = {}, maxLen = 1, n = 0;
     for (var c = 0; c < CHARS.length; c++){
       var set = [];
       for (var v = 0; v < VARIANTS; v++){
         var e = pool[n++];
+        var bare = stripVS(e);
         set.push(e);
-        toChar[e] = CHARS[c];
-        if (e.length > maxLen) maxLen = e.length;
+        toChar[bare] = CHARS[c];
+        display[bare] = e;
+        if (bare.length > maxLen) maxLen = bare.length;
       }
       toEmoji[CHARS[c]] = set;
     }
 
-    var m = { toEmoji: toEmoji, toChar: toChar, maxLen: maxLen };
+    var m = { toEmoji: toEmoji, toChar: toChar, display: display, maxLen: maxLen };
     MAP_CACHE[k] = m;
     return m;
   }
@@ -480,6 +487,7 @@ window.onerror = function(msg, src, line, col){
 
   function decrypt(text, pass){
     var m = buildMap(pass);
+    text = stripVS(text);
     var out = "";
     var i = 0;
     while (i < text.length){
@@ -583,6 +591,7 @@ window.onerror = function(msg, src, line, col){
   /* ---------- shareable card ---------- */
   function tokenize(text, pass){
     var m = buildMap(pass), toks = [], i = 0;
+    text = stripVS(text);
     while (i < text.length){
       var hit = null, hitLen = 0;
       for (var l = m.maxLen; l >= 1; l--){
@@ -591,7 +600,7 @@ window.onerror = function(msg, src, line, col){
           hit = slice; hitLen = l; break;
         }
       }
-      if (hit !== null){ toks.push(hit); i += hitLen; }
+      if (hit !== null){ toks.push(m.display[hit] || hit); i += hitLen; }
       else { toks.push(text[i]); i += 1; }
     }
     return toks;
