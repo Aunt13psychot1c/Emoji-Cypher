@@ -719,8 +719,57 @@ window.onerror = function(msg, src, line, col){
     }
   }
 
+  /* ---------- running as the Android app (Capacitor) ----------
+     Inside the app, browser downloads and the web share menu don't work,
+     so we hand files to the phone itself: write the file, then save or share it. */
+  var CAP = window.Capacitor;
+  var NATIVE = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform() && CAP.nativePromise);
+  if (NATIVE) saveHint.textContent = "Tap Save .png to keep it";
+
+  function toBase64(data){
+    return new Promise(function(resolve, reject){
+      var blob = (data instanceof Blob) ? data : new Blob([data], { type: "text/plain;charset=utf-8" });
+      var r = new FileReader();
+      r.onload = function(){ resolve(String(r.result).split(",")[1] || ""); };
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
+
+  /* write to the app's scratch space and open the phone's share menu */
+  function nativeShare(filename, data){
+    return toBase64(data).then(function(b64){
+      return CAP.nativePromise("Filesystem", "writeFile",
+        { path: filename, data: b64, directory: "CACHE" });
+    }).then(function(res){
+      return CAP.nativePromise("Share", "share",
+        { title: filename, files: [res.uri], dialogTitle: "Send or save " + filename });
+    });
+  }
+
+  /* save into the phone's Documents folder; if the phone says no, fall back to the share menu */
+  function nativeSave(filename, data){
+    return toBase64(data).then(function(b64){
+      return CAP.nativePromise("Filesystem", "writeFile",
+        { path: "Emoji Cipher/" + filename, data: b64, directory: "DOCUMENTS", recursive: true });
+    }).then(function(){ return "Saved to Documents"; },
+            function(){ return nativeShare(filename, data).then(function(){ return "Shared"; }); });
+  }
+
   function offer(btn, filename, data, type){
     var original = btn.textContent;
+    if (NATIVE){
+      btn.disabled = true;
+      nativeSave(filename, data).then(function(msg){
+        btn.textContent = msg;
+      }, function(err){
+        var cancelled = err && /cancel/i.test(String(err.message || err));
+        btn.textContent = cancelled ? original : "Couldn't save";
+      }).then(function(){
+        setTimeout(function(){ btn.textContent = original; btn.disabled = false; }, 2200);
+      });
+      return;
+    }
     if (!DL){
       btn.textContent = plainSave(filename, data, type) ? "Saved" : "Couldn't save";
       setTimeout(function(){ btn.textContent = original; }, 1800);
@@ -769,8 +818,13 @@ window.onerror = function(msg, src, line, col){
       setTimeout(function(){ share.textContent = "Share"; }, 1800);
     };
     var quiet = function(err){
-      if (!err || err.name !== "AbortError") flash("Couldn't share");
+      var cancelled = err && (err.name === "AbortError" || /cancel/i.test(String(err.message || err)));
+      if (!cancelled) flash("Couldn't share");
     };
+    if (NATIVE){
+      nativeShare(name, body).catch(quiet);
+      return;
+    }
     var file = null;
     try { file = new File([body], name, { type: "text/plain" }); } catch (e) {}
     if (file && navigator.canShare && navigator.canShare({ files: [file] })){

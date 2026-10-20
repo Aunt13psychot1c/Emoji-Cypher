@@ -1,0 +1,8 @@
+{
+  "appId": "com.aunt13psychot1c.emojicipher",
+  "appName": "Emoji Cipher",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0b0712"
+  }
+}
